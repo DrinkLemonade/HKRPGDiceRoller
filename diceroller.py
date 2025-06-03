@@ -3,9 +3,18 @@ import logging
 import copy
 
 # TODO LIST
+# DO NOT REMOVE THIS WHEN REFACTORING.
 # Implement light armor's soak rerolls
 # Logging: DEBUG = Detailed info, INFO = Working as intended, WARNING = Unexpected, ERROR = Didn't work, CRITICAL = Could stop
 # Check difference between logger and console handler!
+
+# Logging configuration
+logger = logging.getLogger('DiceLogger')
+logger.setLevel(logging.INFO)
+ch = logging.StreamHandler()
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+ch.setFormatter(formatter)
+logger.addHandler(ch)
 
 # Item
 class Item:
@@ -17,17 +26,13 @@ class Item:
 # Weapon
 class Weapon(Item):
     def __init__(self, id="WEAPON_DEBUG_PLACEHOLDER", name="Debug Placeholder Weapon", damage=0):
-        super().__init__(name)
-        self.id = id
-        self.name = name
+        super().__init__(id, name)
         self.damage = damage
 
 # Armor
 class Armor(Item):
     def __init__(self, id="ARMOR_DEBUG_PLACEHOLDER", name="Debug Placeholder Armor", dr=0, soak=0, soak_reroll=0):
-        super().__init__(name)
-        self.id = id
-        self.name = name
+        super().__init__(id, name)
         self.dr = dr
         self.soak = soak
         self.soak_reroll = soak_reroll
@@ -50,15 +55,11 @@ class Dice:
     @staticmethod
     def roll_dice(num_dice, target_number=5, count_sixes=False, reroll_count=0):
         """Roll a number of dice and count successes, allowing rerolls of the lowest dice."""
-        rolls = [random.randint(1, 6) for _ in range(num_dice)]
-        rolls.sort()  # Sort the rolls in ascending order
-
+        rolls = sorted([random.randint(1, 6) for _ in range(num_dice)])
         successes = sum(1 for roll in rolls if roll >= target_number)
         if count_sixes:
             successes += sum(1 for roll in rolls if roll == 6)
 
-        # Reroll the specified number of lowest dice
-        # By default, we only use the new roll if it's better.
         for i in range(reroll_count):
             if rolls[i] == 6:
                 continue
@@ -67,7 +68,7 @@ class Dice:
                 successes += 1
             if count_sixes and new_roll == 6:
                 successes += 1
-            rolls[i] = new_roll  # Replace the lowest roll with the new roll
+            rolls[i] = new_roll
 
         logger.debug(f"{rolls} - {successes} successes")
         return successes
@@ -87,7 +88,6 @@ class Pawn:
         if successes > 0:
             damage_risk = min(self.weapon.damage + successes - 1, 2 * self.weapon.damage)
             logger.debug(f"{self.name} attacks {target.name} with {self.weapon.name}! {successes} successes, {damage_risk} damage risk.")
-
             damage_risk = self.apply_armor_and_soak(target, damage_risk)
             return damage_risk
         else:
@@ -96,7 +96,6 @@ class Pawn:
 
     def apply_armor_and_soak(self, target, damage_risk):
         if target.armor:
-            # Apply DR, which can't reduce risk below 1
             pre_dr_risk = damage_risk
             damage_risk = max(damage_risk - target.armor.dr, 1)
             if damage_risk < pre_dr_risk:
@@ -127,10 +126,9 @@ class DB:
                 return item
         return None
 
-# Simulation
 def simulate_battle(num_battles, pawn1, pawn2, use_deadeye=False, use_guard_breaker=False):
     total_turns = 0
-    total_damage = 0
+    pawn1_total_damage = 0
 
     for _ in range(num_battles):
         pawn1_copy = copy.deepcopy(pawn1)
@@ -144,12 +142,11 @@ def simulate_battle(num_battles, pawn1, pawn2, use_deadeye=False, use_guard_brea
             pawn2_copy.hp -= damage_taken
             logger.debug(f"{damage_taken} damage! New health is {pawn2_copy.hp}.")
 
-
-            total_damage += damage_taken
+            pawn1_total_damage += damage_taken
             if damage_taken > 0 and use_guard_breaker:
                 guard_breaker_modifier = -1
 
-            # Pawn 2 attacks Pawn 1            
+            # Pawn 2 attacks Pawn 1
             damage_taken = pawn2_copy.attack_target(pawn1_copy, 5)
             pawn1_copy.hp -= damage_taken
 
@@ -160,58 +157,46 @@ def simulate_battle(num_battles, pawn1, pawn2, use_deadeye=False, use_guard_brea
         else:
             logger.debug(f"{pawn1.name} wins!")
 
-    average_damage_per_turn = total_damage / total_turns
-    return average_damage_per_turn
+    pawn1_average_damage_per_turn = pawn1_total_damage / total_turns
+    print(f"Ran {num_battles} battles, with Pawn 1's {pawn1.weapon.damage} damage {pawn1.weapon.name} rolling {pawn1.attack} dice against Pawn 2's {pawn2.shell} Shell and {pawn2.armor.name}, Pawn 1's average damage per attack is: {pawn1_average_damage_per_turn:.2f}")
+    return pawn1_average_damage_per_turn
 
-def simulation_cycle(pawn1, pawn2, debug_level=logging.INFO):
-    logger.setLevel(debug_level)
-    ch.setLevel(debug_level)
-    result_list = []  # Clear results
+if __name__ == '__main__':
+    # Prepare Simulation
+    content_db = DB()
 
-    average_damage = simulate_battle(num_battles, pawn1, pawn2)
-    result_text = f"Over {num_battles} battles, with Pawn 1's {pawn1.weapon.damage} damage {pawn1.weapon.name} rolling {pawn1.attack} dice against Pawn 2's {pawn2.shell} Shell and {pawn2.armor.name}, Pawn 1's average damage per attack is: {average_damage:.2f}"
+    # Simulation Settings
+    pawn1 = Pawn("Beetle", attack=6, hp=10, shell=3, weapon=content_db.find("WEAPON_NAIL"), armor=content_db.find("ARMOR_NONE"))
+    pawn2 = Pawn("Ant", attack=1, hp=8, shell=3, weapon=content_db.find("WEAPON_NAIL"), armor=content_db.find("ARMOR_NONE"))
 
-    return result_text
+    # Run Simulations
+    num_battles = 1
+    print("Running a single, detailed battle simulation...")
+    logger.setLevel(logging.DEBUG)
+    ch.setLevel(logging.DEBUG)
+    simulate_battle(num_battles, pawn1, pawn2)
 
-# Logging
-logger = logging.getLogger('DiceLogger')
-ch = logging.StreamHandler()
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-ch.setFormatter(formatter)
-logger.addHandler(ch)
+    num_battles = 300
+    print("\nFrom now on, we run each simulation 300 times and don't check the details.")
+    logger.setLevel(logging.INFO)
+    ch.setLevel(logging.INFO)
+    simulate_battle(num_battles, pawn1, pawn2)
 
-# Prepare Simulation
-content_db = DB()
+    print("\nLet's give the second bug armor this time.")
+    pawn2.armor = content_db.find("ARMOR_MEDIUM")
+    simulate_battle(num_battles, pawn1, pawn2)
 
-# Simulation Settings
-pawn1 = Pawn("Beetle", attack=6, hp=10, shell=3, weapon=content_db.find("WEAPON_NAIL"), armor=content_db.find("ARMOR_NONE"))
-pawn2 = Pawn("Ant", attack=1, hp=8, shell=3, weapon=content_db.find("WEAPON_NAIL"), armor=content_db.find("ARMOR_NONE"))
+    print("\nRunning several sets of simulations now, each overriding Pawn 1's attack dice count with a new value.")
 
-# Run Simulations
-num_battles = 1
-print("Running a single, detailed battle simulation...")
-print(simulation_cycle(pawn1, pawn2, logging.DEBUG))
+    test_p1_attack_min = 2
+    test_p1_attack_max = 7
+    test_p1_damage_min = 2
+    test_p1_damage_max = 3
 
-num_battles = 300
-print("From now on, we run each simulation 300 times and don't check the details.")
-print(simulation_cycle(pawn1, pawn2))
+    for i in range(test_p1_damage_min, test_p1_damage_max+1):
+        pawn1.weapon.damage = i
+        for j in range(test_p1_attack_min, test_p1_attack_max+1):
+            pawn1.attack = j
+            simulate_battle(num_battles, pawn1, pawn2)
 
-print("\nLet's give the second bug armor this time.")
-pawn2.armor = content_db.find("ARMOR_MEDIUM")
-print(simulation_cycle(pawn1, pawn2))
-
-print("\nRunning several sets of simulations now, each overriding Pawn 1's attack dice count with a new value.")
-pawn2.armor = content_db.find("ARMOR_NONE")
-
-test_p1_attack_min = 2
-test_p1_attack_max = 7
-test_p1_damage_min = 1
-test_p1_damage_max = 3
-
-for i in range(test_p1_damage_min, test_p1_damage_max+1):
-    pawn1.weapon.damage = i
-    for j in range(test_p1_attack_min, test_p1_attack_max+1):
-        pawn1.attack = j
-        print(simulation_cycle(pawn1, pawn2))
-
-input("Press Enter to exit...")
+    input("Press Enter to exit...")
