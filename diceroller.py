@@ -7,18 +7,18 @@ class Pawn:
         self.name = name
         self.attack = attack
         self.weapon = Weapon()
-        self.armor = None
+        self.armor = Armor()
         self.hp = hp
         self.shell = shell
 
 class Item:
-    def __init__(self, id = "ITEM_ID", name = "Default Item", bulk = 1):
+    def __init__(self, id = "ITEM_DEBUG_PLACEHOLDER", name = "Debug Placeholder Item", bulk = 1):
         self.id = id
         self.name = name
         self.bulk = bulk
 
 class Weapon(Item):
-    def __init__(self, id = "WEAPON_ID", name = "Default Weapon", damage = 0):
+    def __init__(self, id = "WEAPON_DEBUG_PLACEHOLDER", name = "Debug Placeholder Weapon", damage = 0):
         # Inherit the methods and properties from the parent
         super().__init__(name)
         self.id = id
@@ -26,13 +26,13 @@ class Weapon(Item):
         self.damage = damage
 
 class Armor(Item):
-    def __init__(self, id = "ARMOR_ID", name = "Default Armor", dr = 0, soak = 0, soak_reroll = 0):
+    def __init__(self, id = "ARMOR_DEBUG_PLACEHOLDER", name = "Debug Placeholder Armor", dr = 0, soak = 0, soak_reroll = 0):
         super().__init__(name)
         self.id = id
         self.name = name
         self.dr = dr
         self.soak = soak
-        self.soak_reroll = soak_reroll
+        self.soak_reroll = soak_reroll #TODO IMPLEMENT THIS
 
 # We're taking advantage of Python's type-flexible (?) arrays and shoving everything into the same DB.
 class DB:
@@ -40,6 +40,12 @@ class DB:
         self.contents = []
         self.contents.append(Weapon("WEAPON_DEBUG_NO_EFFECT", "Debug Weapon", damage = 2))
         self.contents.append(Weapon("WEAPON_NAIL", "Nail", damage = 2))
+
+        self.contents.append(Armor("ARMOR_NONE", "No Armor"))
+        self.contents.append(Armor("ARMOR_LIGHT", "Light Armor", soak = 1, soak_reroll = 1))
+        self.contents.append(Armor("ARMOR_MEDIUM", "Medium Armor", soak = 1, dr = 1))
+        self.contents.append(Armor("ARMOR_HEAVY", "Heavy Armor", soak = 1, dr = 2))
+
     
     def find(self, id, check_type = None):
         for item in self.contents:
@@ -92,11 +98,6 @@ def simulate_battle(num_battles, pawn_template_1, pawn_template_2, override_p1_a
         # A deep copy's objects are also copies of the original's objects, rather than references to them.
         pawn1 = copy.deepcopy(pawn_template_1)
         pawn2 = copy.deepcopy(pawn_template_2)
-
-        if override_p1_attack > 0:
-            pawn1.attack = override_p1_attack
-        if override_p1_damage > 0:
-            pawn1.weapon.damage = override_p1_attack
   
         guard_breaker_modifier = 0
 
@@ -153,6 +154,16 @@ def attack(attacker, defender, base_difficulty, use_deadeye=False):
         logger.debug(f"{attacker.name}'s attack misses {defender.name}.")
         return 0
 
+def simulation_cycle(pawn1, pawn2, debug_level = logging.INFO):
+    logger.setLevel(debug_level)
+    ch.setLevel(debug_level)
+    result_list = [] #Clear results
+
+    average_damage = simulate_battle(num_battles, pawn1, pawn2)     
+    result_text = f"Over {num_battles} battles, with Pawn 1's {pawn1.weapon.damage} damage {pawn1.weapon.name} rolling {pawn1.attack} dice against Pawn 2's {pawn2.shell} Shell and {pawn2.armor.name}, Pawn 1's average damage per attack is: {average_damage:.2f}"
+    
+    return result_text
+
 ###### MAIN ######
 # Logging: DEBUG = Detailed info, INFO = Working as intended, WARNING = Unexpected, ERROR = Didn't work, CRITICAL = Could stop
 # TODO check difference between logger and console handler!
@@ -173,37 +184,42 @@ ch.setFormatter(formatter)
 logger.addHandler(ch)
 
 #Prepare Simulation
-result_list = []
-
-#Simulation Settings
-num_battles = 1
-debug_level = logging.DEBUG # logging.INFO
-
-logger.setLevel(debug_level)
-ch.setLevel(debug_level)
-
-# P1's attack dice count doesn't matter since we're overriding it to test ranges from 1 to 7.
 content_db = DB()
 
-pawn1 = Pawn("Beetle", attack = 3, hp = 10, shell = 3)
+# --- Simulation Settings ---
+num_battles = 300
+debug_level = logging.INFO # logging.INFO or DEBUG
+
+pawn1 = Pawn("Beetle", attack = 6, hp = 10, shell = 3)
 pawn1.weapon = content_db.find("WEAPON_NAIL")
+pawn1.armor = content_db.find("ARMOR_NONE")
 
 pawn2 = Pawn("Ant", attack = 1, hp = 8, shell = 3)
 pawn2.weapon = content_db.find("WEAPON_NAIL")
+pawn2.armor = content_db.find("ARMOR_NONE")
 
-override_p1_attack = 0
-override_p1_damage = 0
+# --- Run Simulations ---
+print("Running a standard battle simulation...")
+print(simulation_cycle(pawn1, pawn2))
 
+print("\nLet's give the second bug armor this time.")
+pawn2.armor = content_db.find("ARMOR_MEDIUM")
+print(simulation_cycle(pawn1, pawn2))
 
-# Reminder: range's last value is not inclusive
-for simulate_damage in range(1, 5):
-    for simulate_attack in range (1, 8):
-        average_damage = simulate_battle(num_battles, pawn1, pawn2, override_p1_attack, override_p1_damage)
-        result_text = f"Average damage per attack for {simulate_attack} attack dice and {simulate_damage} damage: {average_damage:.2f}"
-        result_list.append(result_text)
+#We can also simulate several sets of battles, each overriding Pawn 1's stat with a value from 2 to Range
+pawn2.armor = content_db.find("ARMOR_NONE")
 
+print("\nRunning several sets of simulations now...")
+test_p1_attack_min = 2
+test_p1_attack_max = 7
 
-for i, result in enumerate(result_list, start=1):
-    print(result)
+test_p1_damage_min = 1
+test_p1_damage_max = 3
+
+for i in range(test_p1_damage_min, test_p1_damage_max+1):
+    pawn1.weapon.damage = i
+    for j in range (test_p1_attack_min, test_p1_attack_max+1):
+        pawn1.attack = j
+        print(simulation_cycle(pawn1, pawn2))
 
 input("Press Enter to exit...")
