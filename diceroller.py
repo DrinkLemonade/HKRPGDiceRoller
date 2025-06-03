@@ -8,13 +8,30 @@ class Bug:
         self.hp = hp
         self.shell = shell
 
+class Item:
+    def __init__(self, id = "ITEM_ID", name = "Default Item", bulk = 1):
+        self.id = id
+        self.name = name
+        self.bulk = bulk
 
+class Weapon(Item):
+    def __init__(self, id = "WEAPON_ID", name = "Default Weapon", damage = 0):
+        # Inherit the methods and properties from the parent
+        super().__init__(name)
+        self.id = id
+        self.name = name
+        self.damage = damage
+
+class ItemDB:
+    def __init__(self):
+        self.contents = []
+        contents.append(Weapon("WEAPON_NAIL", "Nail", damage = 2))
+        
         
 def roll_attack(attack_dice, target_number=5, deadeye=False):
     """Roll attack dice and count successes."""
-    successes = roll_dice(attack_dice, target_number, False)
+    successes = roll_dice(attack_dice, target_number, count_sixes = deadeye)
     return successes
-
 
 def determine_damage(soak_dice, damage):
     """Roll shell dice and reduce damage."""
@@ -53,9 +70,9 @@ def simulate_battle(num_battles, atk_dice, atk_dmg, use_deadeye=False, use_guard
     total_damage = 0
 
     for _ in range(num_battles):
-        # name, attack, damage, hp, shell
-        bug1 = Bug("Beetle", atk_dice, atk_dmg, 10, 3)  # Has 4 attack dice -- 1.60 dmg per attack on average
-        bug2 = Bug("Ant", 1, 3, 8, 3)
+        bug1 = Bug("Beetle", attack = atk_dice, damage = atk_dmg, hp = 10, shell = 3)
+        bug2 = Bug("Ant", attack = 1, damage = 1, hp = 8, shell = 3)
+
         guard_breaker_modifier = 0
 
         while bug1.hp > 0 and bug2.hp > 0:
