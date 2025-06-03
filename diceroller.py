@@ -1,10 +1,11 @@
 import random
+import logging
 
 class Pawn:
-    def __init__(self, name, attack, damage, hp, shell):
+    def __init__(self, name, attack, hp, shell):
         self.name = name
         self.attack = attack
-        self.damage = damage
+        self.weapon = Weapon()
         self.hp = hp
         self.shell = shell
 
@@ -22,22 +23,31 @@ class Weapon(Item):
         self.name = name
         self.damage = damage
 
-class ItemDB:
+class DB:
     def __init__(self):
         self.contents = []
-        contents.append(Weapon("WEAPON_NAIL", "Nail", damage = 2))
-        
+    
+    def find(self, id, check_type = None):
+        for item in self.contents:
+            if (check_type == None or isinstance(item, check_type)) and item.id == id:
+                return item
+        return None
+
+class ItemDB(DB):
+    def __init__(self):
+        super().__init__()
+        self.contents.append(Weapon("WEAPON_DEBUG_NO_EFFECT", "Debug Weapon", damage = 2))
+        self.contents.append(Weapon("WEAPON_NAIL", "Nail", damage = 2))
         
 def roll_attack(attack_dice, target_number=5, deadeye=False):
     """Roll attack dice and count successes."""
     successes = roll_dice(attack_dice, target_number, count_sixes = deadeye)
     return successes
 
-def determine_damage(soak_dice, damage):
-    """Roll shell dice and reduce damage."""
-    shell_rolls = [random.randint(1, 6) for _ in range(soak_dice)]
-    shell_successes = sum(1 for roll in shell_rolls if roll >= 5)
-    final_damage = max(0, damage - shell_successes)
+def damage_mitigation(soak_dice, damage):
+    """Roll Soak dice and reduce damage."""
+    successes = roll_dice(num_dice = soak_dice)
+    final_damage = max(0, damage - successes)
     return final_damage
 
 def roll_dice(num_dice, target_number=5, count_sixes=False, reroll_count=0):
@@ -64,15 +74,20 @@ def roll_dice(num_dice, target_number=5, count_sixes=False, reroll_count=0):
     return successes
 
 
-def simulate_battle(num_battles, atk_dice, atk_dmg, use_deadeye=False, use_guard_breaker=False):
+def simulate_battle(num_battles, attack_dice, override_p1_damage = 0, use_deadeye=False, use_guard_breaker=False):
     """Simulate a battle between two pawns and track average damage per turn."""
     total_turns = 0
     total_damage = 0
+    db = ItemDB()
 
     for _ in range(num_battles):
-        pawn1 = Pawn("Beetle", attack = atk_dice, damage = atk_dmg, hp = 10, shell = 3)
-        pawn2 = Pawn("Ant", attack = 1, damage = 1, hp = 8, shell = 3)
-
+        pawn1 = Pawn("Beetle", attack = attack_dice, hp = 10, shell = 3)
+        pawn1.weapon = db.find("WEAPON_NAIL")
+        if override_p1_damage > 0:
+            pawn1.weapon.damage = override_p1_damage
+        pawn2 = Pawn("Ant", attack = 1, hp = 8, shell = 3)
+        pawn2.weapon = db.find("WEAPON_NAIL")
+  
         guard_breaker_modifier = 0
 
         while pawn1.hp > 0 and pawn2.hp > 0:
@@ -87,9 +102,9 @@ def simulate_battle(num_battles, atk_dice, atk_dmg, use_deadeye=False, use_guard
 
             total_turns += 1
         if pawn1.hp <= 0:
-            print(f"{pawn2.name} wins!")
+            logger.debug(f"{pawn2.name} wins!")
         else:
-            print(f"{pawn1.name} wins!")
+            logger.debug(f"{pawn1.name} wins!")
 
     average_damage_per_turn = total_damage / total_turns
     return average_damage_per_turn
@@ -97,14 +112,35 @@ def simulate_battle(num_battles, atk_dice, atk_dmg, use_deadeye=False, use_guard
 def attack(attacker, defender, base_difficulty, use_deadeye=False):
     successes = roll_attack(attacker.attack, base_difficulty, use_deadeye)
     if successes > 0:
-        damage_risk = min(attacker.damage + successes - 1, 2 * attacker.damage)
-        damage_taken = determine_damage(defender.shell, damage_risk)
+        damage_risk = min(attacker.weapon.damage + successes - 1, 2 * attacker.weapon.damage)
+        damage_taken = damage_mitigation(defender.shell, damage_risk)
         defender.hp -= damage_taken
-        print(f"{attacker.name} attacks {defender.name} and deals {damage_taken} damage.")
+        logger.debug(f"{attacker.name} attacks {defender.name} and deals {damage_taken} damage.")
         return damage_taken
     else:
-        print(f"{attacker.name}'s attack misses {defender.name}.")
+        logger.debug(f"{attacker.name}'s attack misses {defender.name}.")
         return 0
+
+###### MAIN ######
+# Logging: DEBUG = Detailed info, INFO = Working as intended, WARNING = Unexpected, ERROR = Didn't work, CRITICAL = Could stop
+# TODO check difference between logger and console handler!
+
+# create logger
+logger = logging.getLogger('DiceLogger')
+logger.setLevel(logging.INFO)
+
+# create console handler and set level to debug
+ch = logging.StreamHandler()
+ch.setLevel(logging.INFO)
+
+# create formatter
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
+# add formatter to ch
+ch.setFormatter(formatter)
+
+# add ch to logger
+logger.addHandler(ch)
 
 # Example usage
 result_list = []
