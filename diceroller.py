@@ -1,6 +1,6 @@
 import random
 
-class Bug:
+class Pawn:
     def __init__(self, name, attack, damage, hp, shell):
         self.name = name
         self.attack = attack
@@ -65,31 +65,31 @@ def roll_dice(num_dice, target_number=5, count_sixes=False, reroll_count=0):
 
 
 def simulate_battle(num_battles, atk_dice, atk_dmg, use_deadeye=False, use_guard_breaker=False):
-    """Simulate a battle between two bugs and track average damage per turn."""
+    """Simulate a battle between two pawns and track average damage per turn."""
     total_turns = 0
     total_damage = 0
 
     for _ in range(num_battles):
-        bug1 = Bug("Beetle", attack = atk_dice, damage = atk_dmg, hp = 10, shell = 3)
-        bug2 = Bug("Ant", attack = 1, damage = 1, hp = 8, shell = 3)
+        pawn1 = Pawn("Beetle", attack = atk_dice, damage = atk_dmg, hp = 10, shell = 3)
+        pawn2 = Pawn("Ant", attack = 1, damage = 1, hp = 8, shell = 3)
 
         guard_breaker_modifier = 0
 
-        while bug1.hp > 0 and bug2.hp > 0:
-            # Bug 1 attacks Bug 2
-            damage_taken = attack(bug1, bug2, 5 + guard_breaker_modifier, use_deadeye)
+        while pawn1.hp > 0 and pawn2.hp > 0:
+            # Pawn 1 attacks Pawn 2
+            damage_taken = attack(pawn1, pawn2, 5 + guard_breaker_modifier, use_deadeye)
             total_damage += damage_taken
             if damage_taken > 0 and use_guard_breaker:
                 guard_breaker_modifier = -1
 
-            # Bug 2 attacks Bug 1
-            damage_taken = attack(bug2, bug1, 5)
+            # Pawn 2 attacks Pawn 1
+            damage_taken = attack(pawn2, pawn1, 5)
 
             total_turns += 1
-        if bug1.hp <= 0:
-            print(f"{bug2.name} wins!")
+        if pawn1.hp <= 0:
+            print(f"{pawn2.name} wins!")
         else:
-            print(f"{bug1.name} wins!")
+            print(f"{pawn1.name} wins!")
 
     average_damage_per_turn = total_damage / total_turns
     return average_damage_per_turn
